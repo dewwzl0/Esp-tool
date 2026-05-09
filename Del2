@@ -1,0 +1,119 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- ===== НАСТРОЙКИ =====
+
+local LOCK_SIZE = 120 -- размер квадрата
+local LOCK_DISTANCE = 150
+local SMOOTHNESS = 0.14
+
+-- ===== GUI =====
+
+local gui = Instance.new("ScreenGui")
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Квадрат фиксации
+local box = Instance.new("Frame")
+box.Size = UDim2.new(0, LOCK_SIZE, 0, LOCK_SIZE)
+box.Position = UDim2.new(0.5, -LOCK_SIZE/2, 0.5, -LOCK_SIZE/2)
+box.BackgroundTransparency = 1
+box.BorderSizePixel = 2
+box.BorderColor3 = Color3.fromRGB(255,0,0)
+box.Parent = gui
+
+-- Центральная точка
+local dot = Instance.new("Frame")
+dot.Size = UDim2.new(0,6,0,6)
+dot.Position = UDim2.new(0.5,-3,0.5,-3)
+dot.BackgroundColor3 = Color3.fromRGB(255,0,0)
+dot.BorderSizePixel = 0
+dot.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1,0)
+corner.Parent = dot
+
+-- ===== ПОИСК ЦЕЛИ =====
+
+local function getTarget()
+
+    local center = Vector2.new(
+        camera.ViewportSize.X / 2,
+        camera.ViewportSize.Y / 2
+    )
+
+    local closest = nil
+    local shortest = math.huge
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+
+        if plr ~= player and plr.Character then
+
+            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+
+            if hrp and hum and hum.Health > 0 then
+
+                local pos, visible =
+                    camera:WorldToViewportPoint(hrp.Position)
+
+                if visible then
+
+                    local screenPos = Vector2.new(pos.X, pos.Y)
+
+                    local distFromCenter =
+                        (screenPos - center).Magnitude
+
+                    local worldDist =
+                        (camera.CFrame.Position - hrp.Position).Magnitude
+
+                    if distFromCenter <= LOCK_SIZE/2
+                    and worldDist <= LOCK_DISTANCE then
+
+                        if distFromCenter < shortest then
+                            shortest = distFromCenter
+                            closest = hrp
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return closest
+end
+
+-- ===== AIM LOCK =====
+
+RunService.RenderStepped:Connect(function()
+
+    local target = getTarget()
+
+    if target then
+
+        -- предикт движения
+        local predicted =
+            target.Position +
+            (target.AssemblyLinearVelocity * 0.10)
+
+        local current = camera.CFrame
+
+        local targetCF = CFrame.new(
+            current.Position,
+            predicted
+        )
+
+        camera.CFrame =
+            current:Lerp(targetCF, SMOOTHNESS)
+
+        box.BorderColor3 = Color3.fromRGB(0,255,0)
+
+    else
+
+        box.BorderColor3 = Color3.fromRGB(255,0,0)
+    end
+end)
